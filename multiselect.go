@@ -2,6 +2,7 @@ package survey
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -94,7 +95,7 @@ func (m *MultiSelect) OnChange(line []rune, pos int, key rune) (newLine []rune, 
 	}
 
 	// paginate the options
-	opts, idx := paginate(m.PageSize, m.Options, m.selectedIndex)
+	opts, idx := paginate(m.PageSize, []fmt.Stringer{}, m.selectedIndex)
 
 	// render the options
 	m.Render(
@@ -142,7 +143,7 @@ func (m *MultiSelect) Prompt() (interface{}, error) {
 	defer terminal.CursorShow()
 
 	// paginate the options
-	opts, idx := paginate(m.PageSize, m.Options, m.selectedIndex)
+	opts, idx := paginate(m.PageSize, []fmt.Stringer{}, m.selectedIndex)
 
 	// ask the question
 	err := m.Render(

@@ -2,6 +2,7 @@ package survey
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"gopkg.in/AlecAivazis/survey.v1/core"
@@ -21,14 +22,16 @@ for them to select using the arrow keys and enter. Response type is a string.
 */
 type Select struct {
 	core.Renderer
-	Message       string
-	Options       []string
-	Default       string
-	Help          string
-	PageSize      int
-	selectedIndex int
-	useDefault    bool
-	showingHelp   bool
+	Message         string
+	Options         []string
+	Default         string
+	StringerOptions []fmt.Stringer
+	StringerDefault fmt.Stringer
+	Help            string
+	PageSize        int
+	selectedIndex   int
+	useDefault      bool
+	showingHelp     bool
 }
 
 // the data available to the templates when processing
@@ -60,7 +63,7 @@ var SelectQuestionTemplate = `
 func (s *Select) OnChange(line []rune, pos int, key rune) (newLine []rune, newPos int, ok bool) {
 	// if the user pressed the enter key
 	if key == terminal.KeyEnter {
-		return []rune(s.Options[s.selectedIndex]), 0, true
+		return []rune(s.StringerOptions[s.selectedIndex].String()), 0, true
 		// if the user pressed the up arrow
 	} else if key == terminal.KeyArrowUp {
 		s.useDefault = false
@@ -68,7 +71,7 @@ func (s *Select) OnChange(line []rune, pos int, key rune) (newLine []rune, newPo
 		// if we are at the top of the list
 		if s.selectedIndex == 0 {
 			// start from the button
-			s.selectedIndex = len(s.Options) - 1
+			s.selectedIndex = len(s.StringerOptions) - 1
 		} else {
 			// otherwise we are not at the top of the list so decrement the selected index
 			s.selectedIndex--
@@ -77,7 +80,7 @@ func (s *Select) OnChange(line []rune, pos int, key rune) (newLine []rune, newPo
 	} else if key == terminal.KeyArrowDown {
 		s.useDefault = false
 		// if we are at the bottom of the list
-		if s.selectedIndex == len(s.Options)-1 {
+		if s.selectedIndex == len(s.StringerOptions)-1 {
 			// start from the top
 			s.selectedIndex = 0
 		} else {
@@ -90,7 +93,7 @@ func (s *Select) OnChange(line []rune, pos int, key rune) (newLine []rune, newPo
 	}
 
 	// figure out the options and index to render
-	opts, idx := paginate(s.PageSize, s.Options, s.selectedIndex)
+	opts, idx := paginate(s.PageSize, s.StringerOptions, s.selectedIndex)
 
 	// render the options
 	s.Render(
@@ -104,12 +107,30 @@ func (s *Select) OnChange(line []rune, pos int, key rune) (newLine []rune, newPo
 	)
 
 	// if we are not pressing ent
-	return []rune(s.Options[s.selectedIndex]), 0, true
+	return []rune(s.StringerOptions[s.selectedIndex].String()), 0, true
+}
+
+type option struct {
+	value string
+}
+
+func (o option) String() string {
+	return o.value
 }
 
 func (s *Select) Prompt() (interface{}, error) {
+	// Adapt old options
+	if len(s.StringerOptions) == 0 && len(s.Options) != 0 {
+		if s.StringerDefault == nil && s.Default != "" {
+			s.StringerDefault = &option{value: s.Default}
+		}
+		for _, o := range s.Options {
+			s.StringerOptions = append(s.StringerOptions, &option{value: o})
+		}
+	}
+
 	// if there are no options to render
-	if len(s.Options) == 0 {
+	if len(s.StringerOptions) == 0 {
 		// we failed
 		return "", errors.New("please provide options to select from")
 	}
@@ -117,11 +138,11 @@ func (s *Select) Prompt() (interface{}, error) {
 	// start off with the first option selected
 	sel := 0
 	// if there is a default
-	if s.Default != "" {
+	if s.StringerDefault != nil {
 		// find the choice
-		for i, opt := range s.Options {
+		for i, opt := range s.StringerOptions {
 			// if the option correponds to the default
-			if opt == s.Default {
+			if opt.String() == s.StringerDefault.String() {
 				// we found our initial value
 				sel = i
 				// stop looking
@@ -133,7 +154,7 @@ func (s *Select) Prompt() (interface{}, error) {
 	s.selectedIndex = sel
 
 	// figure out the options and index to render
-	opts, idx := paginate(s.PageSize, s.Options, sel)
+	opts, idx := paginate(s.PageSize, s.StringerOptions, sel)
 
 	// ask the question
 	err := s.Render(
@@ -177,21 +198,25 @@ func (s *Select) Prompt() (interface{}, error) {
 		s.OnChange(nil, 0, r)
 	}
 
-	var val string
+	var val fmt.Stringer
 	// if we are supposed to use the default value
 	if s.useDefault {
 		// if there is a default value
-		if s.Default != "" {
+		if s.StringerDefault != nil {
 			// use the default value
-			val = s.Default
+			val = s.StringerDefault
 		} else {
 			// there is no default value so use the first
-			val = s.Options[0]
+			val = s.StringerOptions[0]
 		}
 		// otherwise the selected index points to the value
 	} else {
 		// the
-		val = s.Options[s.selectedIndex]
+		val = s.StringerOptions[s.selectedIndex]
+	}
+	fmt.Println(val)
+	if v, ok := val.(option); ok {
+		return v, err
 	}
 
 	return val, err
@@ -202,7 +227,7 @@ func (s *Select) Cleanup(val interface{}) error {
 		SelectQuestionTemplate,
 		SelectTemplateData{
 			Select:     *s,
-			Answer:     val.(string),
+			Answer:     val.(fmt.Stringer).String(),
 			ShowAnswer: true,
 		},
 	)

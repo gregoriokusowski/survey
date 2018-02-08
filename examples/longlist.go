@@ -6,12 +6,43 @@ import (
 	"gopkg.in/AlecAivazis/survey.v1"
 )
 
+type S struct {
+	s string
+}
+
+func (s *S) String() string {
+	return s.s
+}
+
+func s(s string) *S {
+	return &S{s: s}
+}
+
 // the questions to ask
 var simpleQs = []*survey.Question{
 	{
+		Name: "struct",
+		Prompt: &survey.Select{
+			Message: "Choose a letter for struct:",
+			StringerOptions: []fmt.Stringer{
+				s("a"),
+				s("b"),
+				s("c"),
+				s("d"),
+				s("e"),
+				s("f"),
+				s("g"),
+				s("h"),
+				s("i"),
+				s("j"),
+			},
+		},
+		Validate: survey.Required,
+	},
+	{
 		Name: "letter",
 		Prompt: &survey.Select{
-			Message: "Choose a letter:",
+			Message: "Choose a letter for string:",
 			Options: []string{
 				"a",
 				"b",
@@ -25,12 +56,12 @@ var simpleQs = []*survey.Question{
 				"j",
 			},
 		},
-		Validate: survey.Required,
 	},
 }
 
 func main() {
 	answers := struct {
+		Struct *S
 		Letter string
 	}{}
 
