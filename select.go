@@ -214,20 +214,25 @@ func (s *Select) Prompt() (interface{}, error) {
 		// the
 		val = s.StringerOptions[s.selectedIndex]
 	}
-	fmt.Println(val)
-	if v, ok := val.(option); ok {
-		return v, err
+	if v, ok := val.(*option); ok {
+		return v.String(), err
 	}
 
 	return val, err
 }
 
 func (s *Select) Cleanup(val interface{}) error {
+	var ans string
+	if stringerVal, ok := val.(fmt.Stringer); ok {
+		ans = stringerVal.String()
+	} else {
+		ans = val.(string)
+	}
 	return s.Render(
 		SelectQuestionTemplate,
 		SelectTemplateData{
 			Select:     *s,
-			Answer:     val.(fmt.Stringer).String(),
+			Answer:     ans,
 			ShowAnswer: true,
 		},
 	)

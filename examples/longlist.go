@@ -73,5 +73,6 @@ func main() {
 		return
 	}
 	// print the answers
+	fmt.Printf("you chose %s.\n", answers.Struct)
 	fmt.Printf("you chose %s.\n", answers.Letter)
 }
