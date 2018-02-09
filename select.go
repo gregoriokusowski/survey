@@ -37,7 +37,7 @@ type Select struct {
 // the data available to the templates when processing
 type SelectTemplateData struct {
 	Select
-	PageEntries   []string
+	PageEntries   []fmt.Stringer
 	SelectedIndex int
 	Answer        string
 	ShowAnswer    bool

@@ -57,12 +57,31 @@ var simpleQs = []*survey.Question{
 			},
 		},
 	},
+	{
+		Name: "letters",
+		Prompt: &survey.MultiSelect{
+			Message: "Choose some letters:",
+			Options: []string{
+				"a",
+				"b",
+				"c",
+				"d",
+				"e",
+				"f",
+				"g",
+				"h",
+				"i",
+				"j",
+			},
+		},
+	},
 }
 
 func main() {
 	answers := struct {
-		Struct *S
-		Letter string
+		Struct  *S
+		Letter  string
+		Letters []string
 	}{}
 
 	// ask the question
@@ -75,4 +94,5 @@ func main() {
 	// print the answers
 	fmt.Printf("you chose %s.\n", answers.Struct)
 	fmt.Printf("you chose %s.\n", answers.Letter)
+	fmt.Printf("you chose %s.\n", answers.Letters)
 }

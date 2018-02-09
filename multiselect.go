@@ -23,14 +23,16 @@ for them to select using the arrow keys and enter. Response type is a slice of s
 */
 type MultiSelect struct {
 	core.Renderer
-	Message       string
-	Options       []string
-	Default       []string
-	Help          string
-	PageSize      int
-	selectedIndex int
-	checked       map[string]bool
-	showingHelp   bool
+	Message         string
+	Options         []string
+	Default         []string
+	StringerOptions []fmt.Stringer
+	StringerDefault []fmt.Stringer
+	Help            string
+	PageSize        int
+	selectedIndex   int
+	checked         map[fmt.Stringer]bool
+	showingHelp     bool
 }
 
 // data available to the templates when processing
@@ -38,10 +40,10 @@ type MultiSelectTemplateData struct {
 	MultiSelect
 	Answer        string
 	ShowAnswer    bool
-	Checked       map[string]bool
+	Checked       map[fmt.Stringer]bool
 	SelectedIndex int
 	ShowHelp      bool
-	PageEntries   []string
+	PageEntries   []fmt.Stringer
 }
 
 var MultiSelectQuestionTemplate = `
@@ -66,14 +68,14 @@ func (m *MultiSelect) OnChange(line []rune, pos int, key rune) (newLine []rune, 
 		// if we are at the top of the list
 		if m.selectedIndex == 0 {
 			// go to the bottom
-			m.selectedIndex = len(m.Options) - 1
+			m.selectedIndex = len(m.StringerOptions) - 1
 		} else {
 			// decrement the selected index
 			m.selectedIndex--
 		}
 	} else if key == terminal.KeyArrowDown {
 		// if we are at the bottom of the list
-		if m.selectedIndex == len(m.Options)-1 {
+		if m.selectedIndex == len(m.StringerOptions)-1 {
 			// start at the top
 			m.selectedIndex = 0
 		} else {
@@ -82,12 +84,12 @@ func (m *MultiSelect) OnChange(line []rune, pos int, key rune) (newLine []rune, 
 		}
 		// if the user pressed down and there is room to move
 	} else if key == terminal.KeySpace {
-		if old, ok := m.checked[m.Options[m.selectedIndex]]; !ok {
+		if old, ok := m.checked[m.StringerOptions[m.selectedIndex]]; !ok {
 			// otherwise just invert the current value
-			m.checked[m.Options[m.selectedIndex]] = true
+			m.checked[m.StringerOptions[m.selectedIndex]] = true
 		} else {
 			// otherwise just invert the current value
-			m.checked[m.Options[m.selectedIndex]] = !old
+			m.checked[m.StringerOptions[m.selectedIndex]] = !old
 		}
 		// only show the help message if we have one to show
 	} else if key == core.HelpInputRune && m.Help != "" {
@@ -95,7 +97,7 @@ func (m *MultiSelect) OnChange(line []rune, pos int, key rune) (newLine []rune, 
 	}
 
 	// paginate the options
-	opts, idx := paginate(m.PageSize, []fmt.Stringer{}, m.selectedIndex)
+	opts, idx := paginate(m.PageSize, m.StringerOptions, m.selectedIndex)
 
 	// render the options
 	m.Render(
@@ -114,12 +116,28 @@ func (m *MultiSelect) OnChange(line []rune, pos int, key rune) (newLine []rune, 
 }
 
 func (m *MultiSelect) Prompt() (interface{}, error) {
+	// Adapt old options
+	if len(m.StringerOptions) == 0 && len(m.Options) != 0 {
+		for _, o := range m.Options {
+			m.StringerOptions = append(m.StringerOptions, &option{value: o})
+		}
+		if len(m.StringerDefault) == 0 && len(m.Default) != 0 {
+			for _, so := range m.StringerOptions {
+				for _, o := range m.Default {
+					if so.String() == o {
+						m.StringerDefault = append(m.StringerDefault, so)
+					}
+				}
+			}
+		}
+	}
+
 	// compute the default state
-	m.checked = make(map[string]bool)
+	m.checked = make(map[fmt.Stringer]bool)
 	// if there is a default
 	if len(m.Default) > 0 {
-		for _, dflt := range m.Default {
-			for _, opt := range m.Options {
+		for _, dflt := range m.StringerDefault {
+			for _, opt := range m.StringerOptions {
 				// if the option correponds to the default
 				if opt == dflt {
 					// we found our initial value
@@ -132,7 +150,7 @@ func (m *MultiSelect) Prompt() (interface{}, error) {
 	}
 
 	// if there are no options to render
-	if len(m.Options) == 0 {
+	if len(m.StringerOptions) == 0 {
 		// we failed
 		return "", errors.New("please provide options to select from")
 	}
@@ -143,7 +161,7 @@ func (m *MultiSelect) Prompt() (interface{}, error) {
 	defer terminal.CursorShow()
 
 	// paginate the options
-	opts, idx := paginate(m.PageSize, []fmt.Stringer{}, m.selectedIndex)
+	opts, idx := paginate(m.PageSize, m.StringerOptions, m.selectedIndex)
 
 	// ask the question
 	err := m.Render(
@@ -178,26 +196,49 @@ func (m *MultiSelect) Prompt() (interface{}, error) {
 		m.OnChange(nil, 0, r)
 	}
 
-	answers := []string{}
-	for _, option := range m.Options {
-		if val, ok := m.checked[option]; ok && val {
-			answers = append(answers, option)
+	if _, ok := m.StringerOptions[0].(*option); ok {
+		var answers []string
+		for _, opt := range m.StringerOptions {
+			if val, ok := m.checked[opt]; ok && val {
+				answers = append(answers, opt.String())
+			}
 		}
+		return answers, nil
+	} else {
+		var answers []interface{}
+		for _, opt := range m.StringerOptions {
+			if val, ok := m.checked[opt]; ok && val {
+				answers = append(answers, opt)
+			}
+		}
+		return answers, nil
 	}
-
-	return answers, nil
 }
 
 // Cleanup removes the options section, and renders the ask like a normal question.
 func (m *MultiSelect) Cleanup(val interface{}) error {
 	// execute the output summary template with the answer
+	var values []string
+	if sValues, ok := val.([]string); ok {
+		values = sValues
+	} else {
+		iValues := val.([]interface{})
+
+		if len(iValues) > 0 {
+			for _, v := range iValues {
+				values = append(values, fmt.Sprintf("%s", v))
+			}
+		}
+	}
+
+	ans := strings.Join(values, ", ")
 	return m.Render(
 		MultiSelectQuestionTemplate,
 		MultiSelectTemplateData{
 			MultiSelect:   *m,
 			SelectedIndex: m.selectedIndex,
 			Checked:       m.checked,
-			Answer:        strings.Join(val.([]string), ", "),
+			Answer:        ans,
 			ShowAnswer:    true,
 		},
 	)

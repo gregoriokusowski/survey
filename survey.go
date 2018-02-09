@@ -151,7 +151,7 @@ func Ask(qs []*Question, response interface{}) error {
 
 // paginate returns a single page of choices given the page size, the total list of
 // possible choices, and the current selected index in the total list.
-func paginate(page int, choices []fmt.Stringer, sel int) ([]string, int) {
+func paginate(page int, choices []fmt.Stringer, sel int) ([]fmt.Stringer, int) {
 	// the number of elements to show in a single page
 	var pageSize int
 	// if the select has a specific page size
@@ -195,9 +195,5 @@ func paginate(page int, choices []fmt.Stringer, sel int) ([]string, int) {
 	}
 
 	// return the subset we care about and the index
-	var _choices []string
-	for _, s := range choices[start:end] {
-		_choices = append(_choices, s.String())
-	}
-	return _choices, cursor
+	return choices[start:end], cursor
 }
